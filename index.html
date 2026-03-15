@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Ippnuda Mixer</title>
+    <title>Admin Mixer Ippnuda</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
     <style>
@@ -15,36 +15,33 @@
 
     <main class="w-full max-w-md glass rounded-[2.5rem] p-8 border border-white/10 shadow-2xl">
         <div class="text-center mb-6">
-            <h1 class="text-xl font-bold tracking-widest text-green-400 uppercase">Ippnuda Mixer Pro</h1>
-            <p class="text-[10px] opacity-40 uppercase">Pendengar: <span id="count">0</span></p>
+            <h1 class="text-xl font-bold tracking-widest text-green-400 uppercase">Ippnuda Mixer</h1>
+            <p class="text-[10px] opacity-40 uppercase tracking-widest">Pendengar: <span id="count">0</span></p>
         </div>
 
         <div class="space-y-4">
             <div class="bg-black/30 p-4 rounded-2xl border border-white/5">
                 <input type="file" id="audio-file" accept="audio/*" class="text-[10px] mb-4 w-full">
                 <div class="flex space-x-2">
-                    <button id="btn-play" class="flex-1 py-3 bg-blue-600 rounded-xl text-[10px] font-bold uppercase active:scale-95 transition-all">Play / Ganti</button>
-                    <button id="btn-stop" class="flex-1 py-3 bg-gray-700 rounded-xl text-[10px] font-bold uppercase active:scale-95 transition-all">Stop</button>
+                    <button id="btn-play" class="flex-1 py-3 bg-blue-600 rounded-xl text-[10px] font-bold uppercase active:scale-95">Play / Ganti</button>
+                    <button id="btn-stop" class="flex-1 py-3 bg-gray-700 rounded-xl text-[10px] font-bold uppercase">Stop</button>
                 </div>
                 <div class="flex items-center space-x-2 mt-4">
-                    <span class="text-[9px] opacity-40">VOL</span>
+                    <span class="text-[9px] opacity-40 uppercase">Vol</span>
                     <input type="range" id="vol" min="0" max="1" step="0.1" value="0.5" class="w-full accent-green-500">
                 </div>
             </div>
 
-            <button id="btn-mic" class="w-full py-4 bg-gray-700 rounded-2xl font-bold uppercase text-xs active:scale-95 transition-all">Aktifkan Mic</button>
-            <button id="btn-radio" class="w-full py-4 bg-green-700 rounded-2xl font-bold uppercase text-xs active:scale-95 transition-all">Aktifkan Radio</button>
+            <button id="btn-mic" class="w-full py-4 bg-gray-700 rounded-2xl font-bold uppercase text-xs active:scale-95">Aktifkan Mic</button>
+            <button id="btn-radio" class="w-full py-4 bg-green-700 rounded-2xl font-bold uppercase text-xs">Aktifkan Radio</button>
             
-            <div class="text-[9px] text-gray-400 mb-1 uppercase tracking-widest">Debug Console:</div>
-            <div id="debug" class="text-[10px] text-yellow-500 font-mono p-3 bg-black/60 rounded-xl h-20 overflow-y-auto border border-white/5">
-                Status: Menunggu instruksi...
+            <div id="debug" class="text-[10px] text-yellow-500 font-mono p-3 bg-black/60 rounded-xl h-20 overflow-y-auto border border-white/5 mt-4">
+                [Status] Siap...
             </div>
 
             <button onclick="location.reload()" class="w-full py-2 text-[10px] opacity-30 uppercase underline mt-2">Reset Aplikasi</button>
         </div>
     </main>
-
-    <div id="audio-container"></div>
 
     <script>
         const RADIO_ID = "04021991";
@@ -52,41 +49,34 @@
         const debug = document.getElementById('debug');
 
         function log(msg) {
-            const time = new Date().toLocaleTimeString();
+            const time = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'});
             debug.innerHTML = `[${time}] ${msg}<br>` + debug.innerHTML;
         }
 
         async function initAudioEngine() {
-            try {
-                if (!audioCtx) {
-                    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                    dest = audioCtx.createMediaStreamDestination();
-                    log("Audio Engine Berhasil Dimulai");
-                }
-                if (audioCtx.state === 'suspended') {
-                    await audioCtx.resume();
-                    log("Audio Engine Resumed");
-                }
-            } catch (e) {
-                log("Gagal memulai Audio: " + e.message);
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                // Ini adalah jalur utama ke pendengar. Jangan pernah di-reset!
+                dest = audioCtx.createMediaStreamDestination();
+                log("Mixer Utama Aktif");
             }
+            if (audioCtx.state === 'suspended') await audioCtx.resume();
         }
 
-        // --- MIC ---
+        // --- MICROPHONE ---
         document.getElementById('btn-mic').onclick = async () => {
             await initAudioEngine();
             if (!micStream) {
                 try {
                     micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                    const source = audioCtx.createMediaStreamSource(micStream);
-                    source.connect(dest);
+                    const micSource = audioCtx.createMediaStreamSource(micStream);
+                    // Hubungkan mic ke jalur utama pendengar (dest)
+                    micSource.connect(dest);
                     document.getElementById('btn-mic').classList.replace('bg-gray-700', 'bg-green-600');
-                    log("Microphone Berhasil Terhubung");
-                } catch(e) {
-                    log("Error Mic: " + e.message);
-                }
+                    log("Mic ON (Terhubung ke Siaran)");
+                } catch(e) { log("Error Mic: " + e.message); }
             } else {
-                log("Mic sudah aktif.");
+                log("Sistem Mic aktif.");
             }
         };
 
@@ -94,45 +84,36 @@
         document.getElementById('btn-play').onclick = async () => {
             await initAudioEngine();
             const file = document.getElementById('audio-file').files[0];
-            if (!file) {
-                log("Peringatan: Pilih file MP3 dulu!");
-                return;
-            }
+            if (!file) return log("Pilih file MP3!");
 
             try {
-                // Hentikan audio yang sedang berjalan jika ada
                 if (currentAudio) {
                     currentAudio.pause();
                     if (musicNode) musicNode.disconnect();
-                    log("Menghentikan lagu sebelumnya...");
                 }
 
-                // Buat elemen audio baru setiap ganti lagu agar fresh
                 currentAudio = new Audio();
                 currentAudio.src = URL.createObjectURL(file);
                 currentAudio.crossOrigin = "anonymous";
                 currentAudio.volume = document.getElementById('vol').value;
 
                 musicNode = audioCtx.createMediaElementSource(currentAudio);
-                musicNode.connect(dest);
+                
+                // PENTING: Hubungkan ke dest (pendengar) DAN speaker lokal (admin)
+                musicNode.connect(dest); 
                 musicNode.connect(audioCtx.destination);
                 
                 await currentAudio.play();
-                log("Memutar: " + file.name);
+                log("MP3 ON: " + file.name);
                 document.getElementById('btn-play').innerText = "GANTI LAGU";
-            } catch (err) {
-                log("Error Play: " + err.message);
-            }
+            } catch (err) { log("Error Play: " + err.message); }
         };
 
-        // --- STOP ---
+        // --- STOP MUSIK ---
         document.getElementById('btn-stop').onclick = () => {
             if (currentAudio) {
                 currentAudio.pause();
-                currentAudio.currentTime = 0;
-                log("Musik dihentikan.");
-            } else {
-                log("Tidak ada musik yang berputar.");
+                log("Musik Berhenti.");
             }
         };
 
@@ -140,34 +121,26 @@
             if (currentAudio) currentAudio.volume = e.target.value;
         };
 
-        // --- RADIO ---
+        // --- RADIO BROADCAST ---
         document.getElementById('btn-radio').onclick = () => {
             if (peer) return;
-            
             peer = new Peer(RADIO_ID);
             
             peer.on('open', (id) => {
-                log("RADIO ONLINE. ID: " + id);
+                log("RADIO ONLINE ID: " + id);
                 document.getElementById('btn-radio').innerText = "RADIO ONLINE";
                 document.getElementById('btn-radio').classList.replace('bg-green-700', 'bg-green-500');
             });
 
             peer.on('call', (call) => {
-                log("Pendengar tersambung.");
+                log("Pendengar baru masuk!");
+                // Kirim stream dari dest (Mixer Utama) ke pendengar
                 call.answer(dest.stream);
                 updateCount(1);
-                call.on('close', () => {
-                    log("Pendengar terputus.");
-                    updateCount(-1);
-                });
+                call.on('close', () => updateCount(-1));
             });
 
-            peer.on('error', (err) => {
-                log("Peer Error: " + err.type);
-                if (err.type === 'unavailable-id') {
-                    log("ID 04021991 masih terkunci. Tunggu 10 detik.");
-                }
-            });
+            peer.on('error', (err) => log("Peer Error: " + err.type));
         };
 
         let listenerCount = 0;
