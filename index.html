@@ -3,78 +3,115 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Penyiar - Ippnuda Radio</title>
+    <title>Admin - Ippnuda Radio</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
         .glass { background: rgba(255, 255, 255, 0.1); backdrop-filter: blur(10px); }
         .bg-gradient { background: radial-gradient(circle at top, #064e3b, #000000); }
-        .pulse-green { animation: pulse 2s infinite; }
-        @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.4); } 70% { box-shadow: 0 0 0 20px rgba(34, 197, 94, 0); } 100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); } }
     </style>
 </head>
 <body class="bg-gradient min-h-screen text-white flex flex-col items-center p-6">
-    <header class="text-center mt-10 mb-8">
-        <h1 class="text-2xl font-light tracking-[0.2em] text-green-400 uppercase">Ippnuda Broadcast</h1>
-        <p class="text-[10px] opacity-50">ID TETAP: 04021991</p>
-    </header>
 
-    <div class="w-64 h-64 flex items-center justify-center rounded-full border border-green-800/30 mb-10 pulse-green">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-        </svg>
+    <div id="login-box" class="mt-20 w-full max-w-sm glass p-8 rounded-[2rem] text-center border border-white/10">
+        <h2 class="text-green-400 font-bold tracking-widest mb-6">LOGIN ADMIN</h2>
+        <input type="password" id="pass" placeholder="Password" class="w-full bg-black/40 border border-white/10 p-4 rounded-xl mb-4 text-center">
+        <button onclick="login()" class="w-full bg-green-600 py-3 rounded-xl font-bold">MASUK</button>
     </div>
 
-    <main class="w-full max-w-md glass rounded-[2rem] p-8 border border-white/5 shadow-2xl">
-        <div id="setup-section">
-            <div class="space-y-4">
-                <input type="file" id="audio-file" accept="audio/*" class="w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:bg-green-600 file:text-white">
-                <button id="start-btn" class="w-full py-4 bg-green-600 hover:bg-green-500 rounded-2xl font-bold transition-all">AKTIFKAN SIARAN</button>
-            </div>
+    <main id="main-card" class="hidden w-full max-w-md glass rounded-[2.5rem] p-8 border border-white/10 shadow-2xl mt-10">
+        <div class="text-center mb-6">
+            <h1 class="text-xl font-light tracking-widest text-green-400 uppercase">Ippnuda Admin</h1>
+            <p class="text-[10px] opacity-50 mt-1">PENDENGAR: <span id="count" class="font-bold text-green-500">0</span></p>
         </div>
 
-        <div id="live-section" class="hidden text-center">
-            <div class="flex items-center justify-center space-x-2 mb-4">
-                <span class="w-3 h-3 bg-red-600 rounded-full animate-ping"></span>
-                <span class="text-red-500 font-bold text-sm tracking-widest">ON AIR</span>
+        <div class="space-y-4">
+            <button id="btn-mic" class="w-full py-4 bg-gray-700 rounded-2xl font-bold uppercase text-xs tracking-widest transition-all">Aktifkan Mic</button>
+            
+            <div class="bg-black/20 p-4 rounded-2xl border border-white/5">
+                <input type="file" id="audio-file" accept="audio/*" class="text-[10px] mb-3 block w-full">
+                <button id="btn-music" class="w-full py-3 bg-gray-700 rounded-xl font-bold uppercase text-xs tracking-widest">Putar Musik</button>
             </div>
-            <p class="text-xs opacity-60 mb-2">ID Radio Anda Aktif:</p>
-            <div class="bg-black/40 p-3 rounded-xl border border-green-500/30 text-green-400 font-mono text-xl">04021991</div>
+
+            <hr class="border-white/5">
+            <button id="start-broadcast" class="w-full py-4 bg-green-700 rounded-2xl font-bold tracking-widest uppercase shadow-lg shadow-green-900/40">Aktifkan Radio</button>
+            <button onclick="location.reload()" class="w-full py-2 text-[10px] text-gray-500 uppercase underline mt-2">Reset / Logout</button>
         </div>
     </main>
 
     <script>
         const MY_FIXED_ID = "04021991";
-        const startBtn = document.getElementById('start-btn');
-        const audioInput = document.getElementById('audio-file');
-        let peer, audioCtx, dest;
+        let peer, audioCtx, dest, micStream, musicTag;
+        let isMicOn = false, isMusicOn = false;
+        let activeListeners = new Set();
 
-        startBtn.onclick = async () => {
-            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            dest = audioCtx.createMediaStreamDestination();
+        if(sessionStorage.getItem('auth') === 'true') showApp();
 
-            try {
-                const micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        function login() {
+            if(document.getElementById('pass').value === "IPPNUDA") {
+                sessionStorage.setItem('auth', 'true');
+                showApp();
+            } else { alert("Salah!"); }
+        }
+
+        function showApp() {
+            document.getElementById('login-box').classList.add('hidden');
+            document.getElementById('main-card').classList.remove('hidden');
+        }
+
+        async function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                dest = audioCtx.createMediaStreamDestination();
+            }
+        }
+
+        document.getElementById('btn-mic').onclick = async () => {
+            await initAudio();
+            const btn = document.getElementById('btn-mic');
+            if (!isMicOn) {
+                micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
                 audioCtx.createMediaStreamSource(micStream).connect(dest);
-                
-                if (audioInput.files[0]) {
-                    const audioElem = new Audio(URL.createObjectURL(audioInput.files[0]));
-                    const musicSource = audioCtx.createMediaElementSource(audioElem);
-                    musicSource.connect(dest);
-                    musicSource.connect(audioCtx.destination);
-                    audioElem.play();
-                }
+                btn.innerText = "Matikan Mic"; btn.classList.replace('bg-gray-700', 'bg-green-600');
+                isMicOn = true;
+            } else {
+                micStream.getTracks().forEach(t => t.stop());
+                btn.innerText = "Aktifkan Mic"; btn.classList.replace('bg-green-600', 'bg-gray-700');
+                isMicOn = false;
+            }
+        };
 
-                peer = new Peer(MY_FIXED_ID);
-                peer.on('open', () => {
-                    document.getElementById('setup-section').classList.add('hidden');
-                    document.getElementById('live-section').classList.remove('hidden');
-                });
-                peer.on('call', (call) => call.answer(dest.stream));
-                peer.on('error', (err) => {
-                    if(err.type === 'unavailable-id') alert("ID sedang digunakan atau Anda belum menutup tab siaran sebelumnya.");
-                });
-            } catch (err) { alert("Mic diperlukan."); }
+        document.getElementById('btn-music').onclick = async () => {
+            await initAudio();
+            const btn = document.getElementById('btn-music');
+            if (!isMusicOn) {
+                const file = document.getElementById('audio-file').files[0];
+                if (!file) return alert("Pilih file!");
+                musicTag = new Audio(URL.createObjectURL(file));
+                audioCtx.createMediaElementSource(musicTag).connect(dest);
+                audioCtx.createMediaElementSource(musicTag).connect(audioCtx.destination);
+                musicTag.play();
+                btn.innerText = "Hentikan Musik"; btn.classList.replace('bg-gray-700', 'bg-blue-600');
+                isMusicOn = true;
+            } else {
+                musicTag.pause(); btn.innerText = "Putar Musik"; btn.classList.replace('bg-blue-600', 'bg-gray-700');
+                isMusicOn = false;
+            }
+        };
+
+        document.getElementById('start-broadcast').onclick = () => {
+            if (peer) return;
+            peer = new Peer(MY_FIXED_ID);
+            peer.on('open', () => {
+                document.getElementById('start-broadcast').innerText = "RADIO ONLINE";
+                document.getElementById('start-broadcast').classList.replace('bg-green-700', 'bg-green-500');
+            });
+            peer.on('call', (call) => {
+                call.answer(dest.stream);
+                activeListeners.add(call.peer);
+                document.getElementById('count').innerText = activeListeners.size;
+                call.on('close', () => { activeListeners.delete(call.peer); document.getElementById('count').innerText = activeListeners.size; });
+            });
         };
     </script>
 </body>
