@@ -11,47 +11,69 @@
         .bg-gradient { background: radial-gradient(circle at top, #065f46, #000000); }
     </style>
 </head>
-<body class="bg-gradient min-h-screen text-white flex flex-col items-center p-6">
-    <header class="text-center mt-12 mb-10">
-        <h1 class="text-3xl font-light tracking-widest uppercase">Ippnuda <span class="text-green-500 font-medium">Radio</span></h1>
-    </header>
+<body class="bg-gradient min-h-screen text-white flex flex-col items-center p-6 text-center">
 
-    <main class="w-full max-w-sm glass rounded-[2.5rem] p-8 border border-white/10 text-center shadow-2xl">
-        <div id="status-text" class="text-sm opacity-70 mb-8 text-green-400">Siaran: 04021991</div>
+    <div class="mt-20 w-full max-w-sm glass rounded-[2.5rem] p-10 border border-white/10 shadow-2xl">
+        <div id="status-tag" class="inline-block px-4 py-1 bg-gray-800 rounded-full text-[10px] tracking-widest mb-10 uppercase">Sistem Siap</div>
         
-        <button id="connect-btn" class="w-32 h-32 bg-green-600 hover:bg-green-500 rounded-full flex items-center justify-center mx-auto shadow-[0_0_40px_rgba(34,197,94,0.3)] transition-all active:scale-95">
+        <button id="connect-btn" class="w-32 h-32 bg-green-600 hover:bg-green-500 rounded-full flex items-center justify-center mx-auto shadow-xl transition-all active:scale-95">
             <svg id="play-icon" xmlns="http://www.w3.org/2000/svg" class="h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-width="1.5" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
             </svg>
         </button>
         
-        <p id="info" class="mt-8 text-xs opacity-50 font-light italic">Klik tombol hijau untuk mulai mendengarkan</p>
-    </main>
+        <p id="info" class="mt-8 text-xs opacity-50 font-light italic uppercase tracking-widest">Klik Play Untuk Mencari Siaran</p>
+    </div>
 
     <script>
         const HOST_ID = "04021991";
         const peer = new Peer();
-        const connectBtn = document.getElementById('connect-btn');
+        const badge = document.getElementById('status-tag');
         const infoText = document.getElementById('info');
+        let isRadarActive = false;
 
-        connectBtn.onclick = () => {
-            infoText.innerText = "Menghubungkan ke siaran...";
-            
-            // Mengirim stream kosong untuk memicu handshake PeerJS
+        function connect() {
+            if(!isRadarActive) return;
+
+            badge.innerText = "MENCARI RADAR...";
+            badge.classList.replace('bg-red-600', 'bg-blue-600');
+            badge.classList.replace('bg-gray-800', 'bg-blue-600');
+
+            // Kita butuh izin mic hanya di awal untuk handshake PeerJS
             navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
                 const call = peer.call(HOST_ID, stream);
                 
+                // Jika siaran tidak ditemukan dalam 6 detik
+                const timeout = setTimeout(() => {
+                    if (badge.innerText !== "ONLINE / TERSAMBUNG") {
+                        badge.innerText = "RADIO OFF";
+                        badge.classList.replace('bg-blue-600', 'bg-red-600');
+                        infoText.innerText = "Mencari ulang otomatis...";
+                        setTimeout(connect, 5000); // Auto-Retry
+                    }
+                }, 6000);
+
                 call.on('stream', (remoteStream) => {
+                    clearTimeout(timeout);
+                    badge.innerText = "ONLINE / TERSAMBUNG";
+                    badge.classList.replace('bg-blue-600', 'bg-green-600');
+                    badge.classList.replace('bg-red-600', 'bg-green-600');
                     infoText.innerText = "Mendengarkan Live...";
-                    document.getElementById('status-text').innerText = "• ON AIR •";
                     
                     const audio = new Audio();
                     audio.srcObject = remoteStream;
                     audio.play();
-                });
 
-                call.on('error', () => { alert("Penyiar sedang tidak aktif."); });
+                    // Deteksi jika siaran terputus
+                    call.on('close', () => { connect(); });
+                });
             }).catch(() => alert("Izin audio diperlukan."));
+        }
+
+        document.getElementById('connect-btn').onclick = () => {
+            isRadarActive = true;
+            document.getElementById('connect-btn').classList.add('opacity-50', 'pointer-events-none');
+            connect();
         };
     </script>
 </body>
