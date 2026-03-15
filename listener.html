@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pendengar - Ippnuda Radio</title>
+    <title>Pendengar Radio</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
@@ -11,75 +11,86 @@
         .glass { background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(15px); }
     </style>
 </head>
-<body class="bg-gradient min-h-screen text-white flex flex-col items-center justify-center p-6 text-center font-sans">
+<body class="bg-gradient min-h-screen text-white flex flex-col items-center justify-center p-6 text-center">
 
     <div class="w-full max-w-sm glass border border-white/10 rounded-[3rem] p-10 shadow-2xl">
-        <div id="status-badge" class="inline-block px-4 py-1 bg-gray-800 rounded-full text-[10px] tracking-widest mb-10">KLIK UNTUK MENDENGAR</div>
+        <div id="status-badge" class="inline-block px-4 py-1 bg-gray-800 rounded-full text-[10px] tracking-widest mb-10 uppercase">Sistem Siap</div>
         
         <button id="main-btn" class="w-24 h-24 bg-green-600 rounded-full flex items-center justify-center mx-auto shadow-xl transition-all active:scale-90">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-width="1.5" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
             </svg>
         </button>
 
-        <p id="msg" class="mt-10 text-xs font-bold tracking-widest opacity-40 uppercase">Sistem Siap</p>
+        <p id="msg" class="mt-10 text-xs font-bold tracking-widest opacity-40 uppercase">Klik Play untuk Mencari Siaran</p>
     </div>
 
     <script>
         const HOST_ID = "04021991";
-        const peer = new Peer();
+        let peer = new Peer();
+        let isActivated = false;
+        let retryInterval;
+
         const badge = document.getElementById('status-badge');
         const msg = document.getElementById('msg');
-        let isRadarActive = false;
+        const mainBtn = document.getElementById('main-btn');
+
+        function startRadar() {
+            isActivated = true;
+            mainBtn.style.display = 'none';
+            msg.innerText = "Mencari Radar...";
+            connect();
+        }
 
         function connect() {
-            if (!isRadarActive) return;
+            if (!isActivated) return;
 
             badge.innerText = "MENCARI SIARAN...";
             badge.className = "inline-block px-4 py-1 bg-blue-600 rounded-full text-[10px] tracking-widest mb-10";
-            
+
+            // Mencoba melakukan panggilan
+            // Note: Kita kirim dummy stream agar browser menganggap ini interaksi media yang valid
             const call = peer.call(HOST_ID, new MediaStream());
 
-            // Deteksi jika siaran tidak ditemukan dalam 5 detik
-            const timeout = setTimeout(() => {
+            const connectTimeout = setTimeout(() => {
                 if (badge.innerText !== "ONLINE / TERSAMBUNG") {
                     badge.innerText = "RADIO OFF";
                     badge.className = "inline-block px-4 py-1 bg-red-600 rounded-full text-[10px] tracking-widest mb-10";
-                    msg.innerText = "MENCOBA MENCARI LAGI...";
-                    setTimeout(connect, 5000); // Retry
+                    msg.innerText = "SIARAN BELUM AKTIF. MENCOBA LAGI...";
+                    setTimeout(connect, 4000); 
                 }
-            }, 5000);
+            }, 4000);
 
             call.on('stream', (remoteStream) => {
-                clearTimeout(timeout);
+                clearTimeout(connectTimeout);
                 badge.innerText = "ONLINE / TERSAMBUNG";
-                badge.className = "inline-block px-4 py-1 bg-green-600 rounded-full text-[10px] tracking-widest mb-10";
-                msg.innerText = "SIARAN SEDANG BERLANGSUNG";
+                badge.className = "inline-block px-4 py-1 bg-green-600 rounded-full text-[10px] tracking-widest mb-10 uppercase";
+                msg.innerText = "Mendengarkan Live...";
 
                 const audio = new Audio();
                 audio.srcObject = remoteStream;
-                audio.play();
+                audio.play().catch(e => {
+                    msg.innerText = "Klik layar untuk memutar suara";
+                    window.onclick = () => audio.play();
+                });
 
-                // Deteksi jika siaran tiba-tiba mati
-                remoteStream.onremovetrack = () => {
-                    badge.innerText = "RADIO OFF";
-                    badge.className = "inline-block px-4 py-1 bg-red-600 rounded-full text-[10px] tracking-widest mb-10";
-                    connect();
-                };
+                // Jika koneksi putus
+                call.on('close', () => { 
+                    badge.innerText = "RADIO OFF"; 
+                    connect(); 
+                });
             });
 
-            call.on('error', () => { 
+            call.on('error', () => {
                 badge.innerText = "RADIO OFF";
-                setTimeout(connect, 5000); 
+                setTimeout(connect, 4000);
             });
         }
 
-        document.getElementById('main-btn').onclick = () => {
-            if (isRadarActive) return;
-            isRadarActive = true;
-            document.getElementById('main-btn').classList.add('opacity-50', 'pointer-events-none');
-            connect();
-        };
+        mainBtn.onclick = startRadar;
+
+        // Jika ID Peer utama (pendengar) putus dari server, sambungkan kembali
+        peer.on('disconnected', () => peer.reconnect());
     </script>
 </body>
 </html>
