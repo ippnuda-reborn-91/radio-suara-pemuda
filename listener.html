@@ -3,78 +3,163 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dengar Ippnuda Radio</title>
+    <title>Listener Hybrid - Ippnuda Radio</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
     <style>
-        .glass { background: rgba(255, 255, 255, 0.1); backdrop-filter: blur(10px); }
-        .bg-gradient { background: radial-gradient(circle at top, #065f46, #000000); }
+        .glass { background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(15px); }
+        .bg-gradient { background: radial-gradient(circle at center, #064e3b, #000000); }
+        .playing-active { border-left: 4px solid #22c55e; background: rgba(34, 197, 94, 0.15); color: #22c55e; }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 10px; }
+        @keyframes pulse-green { 0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.4); } 70% { box-shadow: 0 0 0 15px rgba(34, 197, 94, 0); } 100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); } }
+        .pulse-live { animation: pulse-green 2s infinite; }
     </style>
 </head>
-<body class="bg-gradient min-h-screen text-white flex flex-col items-center p-6 text-center">
+<body class="bg-gradient min-h-screen text-white flex flex-col items-center p-6 font-sans">
 
-    <div class="mt-20 w-full max-w-sm glass rounded-[2.5rem] p-10 border border-white/10 shadow-2xl">
-        <div id="status-tag" class="inline-block px-4 py-1 bg-gray-800 rounded-full text-[10px] tracking-widest mb-10 uppercase">Sistem Siap</div>
+    <div class="w-full max-w-sm flex justify-between items-center mb-8 mt-2">
+        <div>
+            <h1 class="text-xl font-bold tracking-tighter">IPPNUDA <span class="text-green-500">RADIO</span></h1>
+            <p id="now-playing-title" class="text-[9px] opacity-50 uppercase tracking-widest mt-1 truncate w-40">Ready to Play</p>
+        </div>
+        <div id="status-badge" class="px-3 py-1 bg-zinc-800 border border-white/10 rounded-full text-[9px] font-bold uppercase tracking-widest transition-all">Offline</div>
+    </div>
+
+    <div class="w-full max-w-sm glass border border-white/10 rounded-[2.5rem] p-8 text-center shadow-2xl mb-8 relative">
+        <div id="live-tag" class="hidden absolute top-5 right-8 flex items-center space-x-1">
+            <span class="w-1.5 h-1.5 bg-red-500 rounded-full animate-ping"></span>
+            <span class="text-[8px] font-bold text-red-500 uppercase tracking-tighter">Live</span>
+        </div>
         
-        <button id="connect-btn" class="w-32 h-32 bg-green-600 hover:bg-green-500 rounded-full flex items-center justify-center mx-auto shadow-xl transition-all active:scale-95">
-            <svg id="play-icon" xmlns="http://www.w3.org/2000/svg" class="h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-width="1.5" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+        <button id="btn-master" class="w-24 h-24 bg-green-600 rounded-full flex items-center justify-center mx-auto transition-all active:scale-90">
+            <svg id="play-icon" xmlns="http://www.w3.org/2000/svg" class="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
             </svg>
         </button>
-        
-        <p id="info" class="mt-8 text-xs opacity-50 font-light italic uppercase tracking-widest">Klik Play Untuk Mencari Siaran</p>
+        <p id="main-status-text" class="mt-6 text-[10px] font-bold uppercase tracking-widest text-green-400">Cek Siaran Langsung</p>
     </div>
+
+    <div class="w-full max-w-sm flex flex-col flex-grow">
+        <div class="flex justify-between items-center mb-4 px-2">
+            <h2 class="text-[10px] opacity-40 uppercase tracking-widest font-bold">Daftar Lagu Offline</h2>
+            <button onclick="loadPlaylist()" class="text-[9px] opacity-30 hover:opacity-100 uppercase underline">Refresh</button>
+        </div>
+        
+        <div id="playlist-container" class="space-y-2 overflow-y-auto custom-scrollbar flex-grow pr-2" style="max-height: 45vh;">
+            <p class="text-[10px] opacity-20 text-center mt-10">Memuat playlist...</p>
+        </div>
+    </div>
+
+    <audio id="audio-engine" crossorigin="anonymous" playsinline></audio>
 
     <script>
         const HOST_ID = "04021991";
         const peer = new Peer();
-        const badge = document.getElementById('status-tag');
-        const infoText = document.getElementById('info');
-        let isRadarActive = false;
+        const audioEngine = document.getElementById('audio-engine');
+        const badge = document.getElementById('status-badge');
+        const mainStatus = document.getElementById('main-status-text');
+        const listContainer = document.getElementById('playlist-container');
+        const nowPlaying = document.getElementById('now-playing-title');
+        const liveTag = document.getElementById('live-tag');
+        const btnMaster = document.getElementById('btn-master');
 
-        function connect() {
-            if(!isRadarActive) return;
+        let isLiveActive = false;
 
-            badge.innerText = "MENCARI RADAR...";
-            badge.classList.replace('bg-red-600', 'bg-blue-600');
-            badge.classList.replace('bg-gray-800', 'bg-blue-600');
+        // --- 1. AMBIL PLAYLIST DARI JSON ---
+        async function loadPlaylist() {
+            try {
+                // Pastikan file playlist.json ada di folder yang sama di GitHub
+                const response = await fetch('playlist.json');
+                const tracks = await response.json();
+                renderPlaylist(tracks);
+            } catch (err) {
+                console.error("Gagal load playlist:", err);
+                listContainer.innerHTML = "<p class='text-[10px] opacity-20 text-center'>Gagal memuat playlist.json</p>";
+            }
+        }
 
-            // Kita butuh izin mic hanya di awal untuk handshake PeerJS
+        function renderPlaylist(tracks) {
+            listContainer.innerHTML = "";
+            tracks.forEach((track, i) => {
+                const div = document.createElement('div');
+                div.className = "track-item p-4 glass rounded-2xl border border-white/5 cursor-pointer flex justify-between items-center transition-all mb-2";
+                div.innerHTML = `
+                    <div class="flex items-center space-x-3">
+                        <span class="text-[9px] opacity-20 font-mono">${(i+1).toString().padStart(2,'0')}</span>
+                        <div class="flex flex-col">
+                            <span class="text-xs font-semibold">${track.title}</span>
+                            <span class="text-[8px] opacity-30 uppercase tracking-tighter">Offline Content</span>
+                        </div>
+                    </div>
+                `;
+                div.onclick = () => playOffline(track, div);
+                listContainer.appendChild(div);
+            });
+        }
+
+        // --- 2. PUTAR LAGU OFFLINE ---
+        function playOffline(track, element) {
+            isLiveActive = false;
+            if(audioEngine.srcObject) audioEngine.srcObject = null; // Putus koneksi live
+            
+            audioEngine.src = track.url;
+            audioEngine.play().then(() => {
+                nowPlaying.innerText = track.title;
+                mainStatus.innerText = "Mode Playlist Aktif";
+                mainStatus.classList.replace('text-green-400', 'text-blue-400');
+                
+                // UI Management
+                document.querySelectorAll('.track-item').forEach(item => item.classList.remove('playing-active'));
+                element.classList.add('playing-active');
+                badge.innerText = "Offline";
+                badge.className = "px-3 py-1 bg-zinc-800 border border-white/10 rounded-full text-[9px] font-bold uppercase tracking-widest";
+                liveTag.classList.add('hidden');
+                btnMaster.classList.remove('pulse-live');
+            }).catch(e => alert("Gagal memutar lagu. Cek koneksi/file."));
+        }
+
+        // --- 3. KONEKSI KE SIARAN LIVE (ADMIN) ---
+        function connectLive() {
+            isLiveActive = true;
+            badge.innerText = "Mencari...";
+            badge.classList.replace('bg-zinc-800', 'bg-blue-600');
+
             navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
                 const call = peer.call(HOST_ID, stream);
                 
-                // Jika siaran tidak ditemukan dalam 6 detik
                 const timeout = setTimeout(() => {
-                    if (badge.innerText !== "ONLINE / TERSAMBUNG") {
-                        badge.innerText = "RADIO OFF";
-                        badge.classList.replace('bg-blue-600', 'bg-red-600');
-                        infoText.innerText = "Mencari ulang otomatis...";
-                        setTimeout(connect, 5000); // Auto-Retry
+                    if (badge.innerText !== "ONLINE") {
+                        badge.innerText = "Offline";
+                        badge.classList.replace('bg-blue-600', 'bg-zinc-800');
+                        mainStatus.innerText = "Penyiar Tidak Aktif";
+                        logError();
                     }
-                }, 6000);
+                }, 7000);
 
                 call.on('stream', (remoteStream) => {
                     clearTimeout(timeout);
-                    badge.innerText = "ONLINE / TERSAMBUNG";
-                    badge.classList.replace('bg-blue-600', 'bg-green-600');
-                    badge.classList.replace('bg-red-600', 'bg-green-600');
-                    infoText.innerText = "Mendengarkan Live...";
+                    badge.innerText = "ONLINE";
+                    badge.className = "px-3 py-1 bg-green-600 rounded-full text-[9px] font-bold uppercase tracking-widest pulse-live";
+                    mainStatus.innerText = "Siaran Langsung Terhubung";
+                    mainStatus.classList.replace('text-blue-400', 'text-green-400');
+                    nowPlaying.innerText = "Streaming Ippnuda Live";
+                    liveTag.classList.remove('hidden');
+                    btnMaster.classList.add('pulse-live');
                     
-                    const audio = new Audio();
-                    audio.srcObject = remoteStream;
-                    audio.play();
-
-                    // Deteksi jika siaran terputus
-                    call.on('close', () => { connect(); });
+                    audioEngine.srcObject = remoteStream;
+                    audioEngine.play();
+                    
+                    // Reset styling playlist offline
+                    document.querySelectorAll('.track-item').forEach(item => item.classList.remove('playing-active'));
                 });
-            }).catch(() => alert("Izin audio diperlukan."));
+            }).catch(() => alert("Izin mikrofon diperlukan agar audio tersinkronisasi."));
         }
 
-        document.getElementById('connect-btn').onclick = () => {
-            isRadarActive = true;
-            document.getElementById('connect-btn').classList.add('opacity-50', 'pointer-events-none');
-            connect();
-        };
+        btnMaster.onclick = connectLive;
+        
+        // Load data playlist saat startup
+        loadPlaylist();
     </script>
 </body>
 </html>
