@@ -14,36 +14,52 @@
 <body class="bg-gradient min-h-screen text-white flex flex-col items-center p-6">
 
     <div id="login-box" class="mt-20 w-full max-w-sm glass p-8 rounded-[2rem] text-center border border-white/10">
-        <h2 class="text-green-400 font-bold tracking-widest mb-6">LOGIN ADMIN</h2>
-        <input type="password" id="pass" placeholder="Password" class="w-full bg-black/40 border border-white/10 p-4 rounded-xl mb-4 text-center">
-        <button onclick="login()" class="w-full bg-green-600 py-3 rounded-xl font-bold">MASUK</button>
+        <h2 class="text-green-400 font-bold tracking-widest mb-6 uppercase text-sm">Login Admin Ippnuda</h2>
+        <input type="password" id="pass" placeholder="Password" class="w-full bg-black/40 border border-white/10 p-4 rounded-xl mb-4 text-center focus:outline-none focus:border-green-500">
+        <button onclick="login()" class="w-full bg-green-600 py-3 rounded-xl font-bold hover:bg-green-500 transition-all">MASUK</button>
     </div>
 
     <main id="main-card" class="hidden w-full max-w-md glass rounded-[2.5rem] p-8 border border-white/10 shadow-2xl mt-10">
         <div class="text-center mb-6">
-            <h1 class="text-xl font-light tracking-widest text-green-400 uppercase">Ippnuda Admin</h1>
-            <p class="text-[10px] opacity-50 mt-1">PENDENGAR: <span id="count" class="font-bold text-green-500">0</span></p>
+            <h1 class="text-xl font-light tracking-widest text-green-400 uppercase">Ippnuda Mixer</h1>
+            <p class="text-[10px] opacity-40 mt-1 uppercase tracking-tighter">Pendengar Aktif: <span id="count" class="font-bold text-green-500 text-sm">0</span></p>
         </div>
 
         <div class="space-y-4">
-            <button id="btn-mic" class="w-full py-4 bg-gray-700 rounded-2xl font-bold uppercase text-xs tracking-widest transition-all">Aktifkan Mic</button>
+            <button id="btn-mic" class="w-full py-4 bg-gray-700 rounded-2xl font-bold uppercase text-xs tracking-widest transition-all border border-white/5">Aktifkan Mic</button>
             
-            <div class="bg-black/20 p-4 rounded-2xl border border-white/5">
-                <input type="file" id="audio-file" accept="audio/*" class="text-[10px] mb-3 block w-full">
-                <button id="btn-music" class="w-full py-3 bg-gray-700 rounded-xl font-bold uppercase text-xs tracking-widest">Putar Musik</button>
+            <div class="bg-black/30 p-5 rounded-3xl border border-white/5">
+                <label class="text-[9px] text-gray-500 uppercase block mb-3 tracking-widest text-center">Music Control</label>
+                <input type="file" id="audio-file" accept="audio/*" class="text-[10px] mb-4 block w-full text-gray-400">
+                
+                <audio id="music-tag"></audio>
+
+                <div class="flex space-x-2 mb-4">
+                    <button id="btn-music-play" class="flex-1 py-3 bg-gray-700 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all">Play</button>
+                    <button id="btn-music-stop" class="flex-1 py-3 bg-gray-700 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all">Stop</button>
+                </div>
+
+                <div class="flex items-center space-x-3 px-1">
+                    <span class="text-[9px] text-gray-500 font-bold">VOL</span>
+                    <input type="range" id="music-volume" min="0" max="1" step="0.1" value="0.5" class="w-full accent-green-500">
+                </div>
             </div>
 
-            <hr class="border-white/5">
-            <button id="start-broadcast" class="w-full py-4 bg-green-700 rounded-2xl font-bold tracking-widest uppercase shadow-lg shadow-green-900/40">Aktifkan Radio</button>
-            <button onclick="location.reload()" class="w-full py-2 text-[10px] text-gray-500 uppercase underline mt-2">Reset / Logout</button>
+            <hr class="border-white/5 my-2">
+            <button id="start-broadcast" class="w-full py-4 bg-green-700 rounded-2xl font-bold tracking-widest uppercase shadow-lg shadow-green-900/40 hover:bg-green-600 transition-all">Aktifkan Radio</button>
+            <button onclick="location.reload()" class="w-full py-2 text-[10px] text-gray-500 uppercase underline mt-4 tracking-tighter">Reset / Logout</button>
         </div>
     </main>
 
     <script>
         const MY_FIXED_ID = "04021991";
-        let peer, audioCtx, dest, micStream, musicTag;
+        let peer, audioCtx, dest, micStream, musicNode;
         let isMicOn = false, isMusicOn = false;
         let activeListeners = new Set();
+
+        const musicTag = document.getElementById('music-tag');
+        const audioInput = document.getElementById('audio-file');
+        const volSlider = document.getElementById('music-volume');
 
         if(sessionStorage.getItem('auth') === 'true') showApp();
 
@@ -51,7 +67,7 @@
             if(document.getElementById('pass').value === "IPPNUDA") {
                 sessionStorage.setItem('auth', 'true');
                 showApp();
-            } else { alert("Salah!"); }
+            } else { alert("Password Salah!"); }
         }
 
         function showApp() {
@@ -66,39 +82,55 @@
             }
         }
 
+        // --- Logika Mic ---
         document.getElementById('btn-mic').onclick = async () => {
             await initAudio();
             const btn = document.getElementById('btn-mic');
             if (!isMicOn) {
-                micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                audioCtx.createMediaStreamSource(micStream).connect(dest);
-                btn.innerText = "Matikan Mic"; btn.classList.replace('bg-gray-700', 'bg-green-600');
-                isMicOn = true;
+                try {
+                    micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    audioCtx.createMediaStreamSource(micStream).connect(dest);
+                    btn.innerText = "Matikan Mic"; 
+                    btn.classList.replace('bg-gray-700', 'bg-green-600');
+                    isMicOn = true;
+                } catch(e) { alert("Mic tidak diizinkan"); }
             } else {
                 micStream.getTracks().forEach(t => t.stop());
-                btn.innerText = "Aktifkan Mic"; btn.classList.replace('bg-green-600', 'bg-gray-700');
+                btn.innerText = "Aktifkan Mic"; 
+                btn.classList.replace('bg-green-600', 'bg-gray-700');
                 isMicOn = false;
             }
         };
 
-        document.getElementById('btn-music').onclick = async () => {
+        // --- Logika Musik ---
+        document.getElementById('btn-music-play').onclick = async () => {
             await initAudio();
-            const btn = document.getElementById('btn-music');
-            if (!isMusicOn) {
-                const file = document.getElementById('audio-file').files[0];
-                if (!file) return alert("Pilih file!");
-                musicTag = new Audio(URL.createObjectURL(file));
-                audioCtx.createMediaElementSource(musicTag).connect(dest);
-                audioCtx.createMediaElementSource(musicTag).connect(audioCtx.destination);
+            if (audioInput.files[0]) {
+                if (!musicNode) {
+                    const fileURL = URL.createObjectURL(audioInput.files[0]);
+                    musicTag.src = fileURL;
+                    musicNode = audioCtx.createMediaElementSource(musicTag);
+                    musicNode.connect(dest); // Ke Pendengar
+                    musicNode.connect(audioCtx.destination); // Ke Admin
+                }
                 musicTag.play();
-                btn.innerText = "Hentikan Musik"; btn.classList.replace('bg-gray-700', 'bg-blue-600');
+                document.getElementById('btn-music-play').classList.replace('bg-gray-700', 'bg-blue-600');
                 isMusicOn = true;
-            } else {
-                musicTag.pause(); btn.innerText = "Putar Musik"; btn.classList.replace('bg-blue-600', 'bg-gray-700');
+            } else { alert("Pilih file MP3!"); }
+        };
+
+        document.getElementById('btn-music-stop').onclick = () => {
+            if (musicTag) {
+                musicTag.pause();
+                musicTag.currentTime = 0;
+                document.getElementById('btn-music-play').classList.replace('bg-blue-600', 'bg-gray-700');
                 isMusicOn = false;
             }
         };
 
+        volSlider.oninput = (e) => { musicTag.volume = e.target.value; };
+
+        // --- Logika Radio ---
         document.getElementById('start-broadcast').onclick = () => {
             if (peer) return;
             peer = new Peer(MY_FIXED_ID);
@@ -110,7 +142,13 @@
                 call.answer(dest.stream);
                 activeListeners.add(call.peer);
                 document.getElementById('count').innerText = activeListeners.size;
-                call.on('close', () => { activeListeners.delete(call.peer); document.getElementById('count').innerText = activeListeners.size; });
+                call.on('close', () => { 
+                    activeListeners.delete(call.peer); 
+                    document.getElementById('count').innerText = activeListeners.size; 
+                });
+            });
+            peer.on('error', (err) => {
+                if(err.type === 'unavailable-id') alert("ID 04021991 sedang digunakan. Refresh tab lain.");
             });
         };
     </script>
