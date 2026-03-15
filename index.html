@@ -3,111 +3,86 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Ippnuda Radio</title>
+    <title>Admin Ippnuda</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
-    <style>
-        .glass { background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(20px); }
-        .bg-gradient { background: radial-gradient(circle at top, #064e3b, #000000); }
-    </style>
+    <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 </head>
-<body class="bg-gradient min-h-screen text-white flex flex-col items-center justify-center p-4">
+<body class="bg-black text-white flex items-center justify-center min-h-screen font-sans">
 
-    <div id="login-overlay" class="fixed inset-0 z-50 flex items-center justify-center bg-black/95 p-6 hidden">
-        <div class="w-full max-w-sm glass border border-white/10 p-8 rounded-[2.5rem] text-center">
-            <h2 class="text-green-400 tracking-widest uppercase text-sm mb-6">Security Access</h2>
-            <input type="password" id="pass-input" class="w-full bg-black/40 border border-white/10 rounded-2xl py-4 px-6 mb-4 text-center">
-            <button onclick="checkPass()" class="w-full py-4 bg-green-600 rounded-2xl font-bold">MASUK</button>
-        </div>
-    </div>
-
-    <main id="app-content" class="w-full max-w-md glass rounded-[3rem] p-8 border border-white/10 shadow-2xl">
-        <div class="text-center mb-6">
-            <div id="status-label" class="inline-block px-3 py-1 bg-gray-800 rounded-full text-[10px] tracking-widest mb-2 uppercase">Siaran Mati</div>
-            <h1 class="text-xl font-light tracking-[0.3em] text-green-400 uppercase">Ippnuda Mixer</h1>
-            <p class="text-[10px] opacity-40 mt-1">PENDENGAR AKTIF: <span id="count" class="font-bold text-green-500">0</span></p>
+    <main class="w-full max-w-md p-8 bg-zinc-900 rounded-[2.5rem] border border-white/10 shadow-2xl">
+        <div class="text-center mb-8">
+            <h1 class="text-green-500 tracking-[0.3em] font-bold uppercase text-lg">Ippnuda Admin</h1>
+            <p id="status" class="text-[10px] opacity-50 mt-2 uppercase tracking-widest">Status: Offline</p>
         </div>
 
-        <div class="space-y-4">
-            <button id="btn-mic" class="w-full py-4 bg-gray-700 rounded-2xl text-xs font-bold uppercase tracking-widest transition-all">Aktifkan Mic</button>
-            <div class="bg-white/5 p-4 rounded-2xl border border-white/5 text-center">
-                <input type="file" id="audio-file" accept="audio/*" class="text-[10px] mb-3 block w-full">
-                <button id="btn-music" class="w-full py-3 bg-gray-700 rounded-xl text-xs font-bold uppercase tracking-widest">Putar Musik</button>
+        <div class="space-y-6">
+            <div class="bg-white/5 p-4 rounded-2xl border border-white/5">
+                <label class="text-[10px] opacity-40 uppercase block mb-2">Pilih Lagu (.mp3)</label>
+                <input type="file" id="music-file" accept="audio/*" class="text-xs w-full">
             </div>
-            <button id="start-broadcast" class="w-full py-4 bg-green-700 rounded-2xl font-bold tracking-[0.2em] shadow-lg uppercase">Aktifkan Radio</button>
-            <button onclick="location.reload()" class="w-full py-2 text-[10px] text-gray-500 uppercase mt-4 underline">Reset / Logout</button>
+
+            <button id="master-btn" class="w-full py-5 bg-green-600 rounded-2xl font-bold tracking-widest shadow-lg active:scale-95 transition-all">
+                AKTIFKAN RADIO & MIC
+            </button>
+
+            <div class="flex justify-between items-center px-2">
+                <span class="text-[10px] opacity-40 uppercase">Pendengar Aktif</span>
+                <span id="count" class="text-green-500 font-bold">0</span>
+            </div>
+
+            <button onclick="location.reload()" class="w-full py-2 text-[10px] opacity-30 hover:opacity-100 uppercase underline">Reset Koneksi</button>
         </div>
     </main>
 
     <script>
-        const MY_FIXED_ID = "04021991";
-        let peer, audioCtx, dest, micStream, musicTag;
-        let isMicOn = false, isMusicOn = false;
-        let activeCalls = new Set();
+        const RADIO_ID = "04021991";
+        let peer, audioCtx, dest, stream;
+        let connections = new Set();
 
-        if (sessionStorage.getItem('ippnuda_auth') !== 'true') document.getElementById('login-overlay').classList.remove('hidden');
-        function checkPass() { if (document.getElementById('pass-input').value === "IPPNUDA") { sessionStorage.setItem('ippnuda_auth', 'true'); document.getElementById('login-overlay').classList.add('hidden'); } }
-
-        async function initAudio() {
-            if (!audioCtx) {
+        document.getElementById('master-btn').onclick = async function() {
+            try {
+                // 1. Inisialisasi Audio
                 audioCtx = new (window.AudioContext || window.webkitAudioContext)();
                 dest = audioCtx.createMediaStreamDestination();
-            }
-        }
 
-        document.getElementById('btn-mic').onclick = async () => {
-            await initAudio();
-            const btn = document.getElementById('btn-mic');
-            if (!isMicOn) {
-                micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                // 2. Ambil Mic
+                const micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
                 audioCtx.createMediaStreamSource(micStream).connect(dest);
-                btn.innerText = "Matikan Mic"; btn.className = "w-full py-4 bg-green-600 rounded-2xl text-xs font-bold uppercase tracking-widest";
-                isMicOn = true;
-            } else {
-                micStream.getTracks().forEach(t => t.stop());
-                btn.innerText = "Aktifkan Mic"; btn.className = "w-full py-4 bg-gray-700 rounded-2xl text-xs font-bold uppercase tracking-widest";
-                isMicOn = false;
+
+                // 3. Tambah Musik jika ada
+                const file = document.getElementById('music-file').files[0];
+                if (file) {
+                    const audio = new Audio(URL.createObjectURL(file));
+                    const source = audioCtx.createMediaElementSource(audio);
+                    source.connect(dest);
+                    source.connect(audioCtx.destination);
+                    audio.play();
+                }
+
+                // 4. Aktifkan PeerJS
+                peer = new Peer(RADIO_ID);
+                peer.on('open', (id) => {
+                    document.getElementById('status').innerText = "Status: Online (Broadcasting)";
+                    document.getElementById('master-btn').innerText = "SIARAN AKTIF";
+                    document.getElementById('master-btn').classList.replace('bg-green-600', 'bg-red-600');
+                    document.getElementById('master-btn').disabled = true;
+                });
+
+                peer.on('call', (call) => {
+                    call.answer(dest.stream);
+                    connections.add(call.peer);
+                    document.getElementById('count').innerText = connections.size;
+                    call.on('close', () => { connections.delete(call.peer); document.getElementById('count').innerText = connections.size; });
+                });
+
+                peer.on('error', (err) => {
+                    if(err.type === 'unavailable-id') alert("ID Masih dipakai. Tunggu 5 detik lalu klik Reset.");
+                });
+
+            } catch (err) {
+                alert("Harap izinkan Microphone!");
             }
         };
-
-        document.getElementById('btn-music').onclick = async () => {
-            await initAudio();
-            const btn = document.getElementById('btn-music');
-            if (!isMusicOn) {
-                const file = document.getElementById('audio-file').files[0];
-                if (!file) return alert("Pilih file!");
-                musicTag = new Audio(URL.createObjectURL(file));
-                audioCtx.createMediaElementSource(musicTag).connect(dest);
-                audioCtx.createMediaElementSource(musicTag).connect(audioCtx.destination);
-                musicTag.play();
-                btn.innerText = "Berhenti Musik"; btn.classList.replace('bg-gray-700', 'bg-blue-600');
-                isMusicOn = true;
-            } else {
-                musicTag.pause(); btn.innerText = "Putar Musik"; btn.classList.replace('bg-blue-600', 'bg-gray-700');
-                isMusicOn = false;
-            }
-        };
-
-        document.getElementById('start-broadcast').onclick = () => {
-            if (peer) return;
-            peer = new Peer(MY_FIXED_ID);
-            peer.on('open', (id) => {
-                document.getElementById('status-label').innerText = "SIARAN AKTIF";
-                document.getElementById('status-label').classList.replace('bg-gray-800', 'bg-red-600');
-                document.getElementById('start-broadcast').innerText = "RADIO ONLINE";
-                document.getElementById('start-broadcast').disabled = true;
-            });
-
-            peer.on('call', (call) => {
-                call.answer(dest.stream);
-                activeCalls.add(call.peer);
-                updateCount();
-                call.on('close', () => { activeCalls.delete(call.peer); updateCount(); });
-                call.on('error', () => { activeCalls.delete(call.peer); updateCount(); });
-            });
-        };
-
-        function updateCount() { document.getElementById('count').innerText = activeCalls.size; }
     </script>
 </body>
 </html>
