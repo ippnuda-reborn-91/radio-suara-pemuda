@@ -3,94 +3,74 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pendengar Radio</title>
+    <title>Listener Ippnuda</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
-    <style>
-        .bg-gradient { background: radial-gradient(circle at center, #064e3b, #000000); }
-        .glass { background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(15px); }
-    </style>
+    <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 </head>
-<body class="bg-gradient min-h-screen text-white flex flex-col items-center justify-center p-6 text-center">
+<body class="bg-black text-white flex items-center justify-center min-h-screen">
 
-    <div class="w-full max-w-sm glass border border-white/10 rounded-[3rem] p-10 shadow-2xl">
-        <div id="status-badge" class="inline-block px-4 py-1 bg-gray-800 rounded-full text-[10px] tracking-widest mb-10 uppercase">Sistem Siap</div>
+    <div class="w-full max-w-sm p-10 bg-zinc-900 rounded-[3rem] text-center border border-white/10 shadow-2xl">
+        <div id="badge" class="inline-block px-4 py-1 bg-zinc-800 rounded-full text-[10px] tracking-widest mb-10 uppercase">Sistem Siap</div>
         
-        <button id="main-btn" class="w-24 h-24 bg-green-600 rounded-full flex items-center justify-center mx-auto shadow-xl transition-all active:scale-90">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-width="1.5" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+        <button id="play-btn" class="w-24 h-24 bg-green-600 rounded-full flex items-center justify-center mx-auto shadow-2xl active:scale-90 transition-all">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
             </svg>
         </button>
 
-        <p id="msg" class="mt-10 text-xs font-bold tracking-widest opacity-40 uppercase">Klik Play untuk Mencari Siaran</p>
+        <p id="msg" class="mt-10 text-[10px] opacity-40 uppercase tracking-widest">Klik untuk mulai mendengar</p>
     </div>
 
     <script>
-        const HOST_ID = "04021991";
-        let peer = new Peer();
-        let isActivated = false;
-        let retryInterval;
-
-        const badge = document.getElementById('status-badge');
+        const RADIO_ID = "04021991";
+        const peer = new Peer();
+        const badge = document.getElementById('badge');
         const msg = document.getElementById('msg');
-        const mainBtn = document.getElementById('main-btn');
+        let isStarted = false;
 
         function startRadar() {
-            isActivated = true;
-            mainBtn.style.display = 'none';
-            msg.innerText = "Mencari Radar...";
+            isStarted = true;
+            document.getElementById('play-btn').style.display = 'none';
             connect();
         }
 
         function connect() {
-            if (!isActivated) return;
+            if (!isStarted) return;
+            
+            badge.innerText = "MENCARI...";
+            badge.classList.replace('bg-zinc-800', 'bg-blue-600');
+            badge.classList.replace('bg-red-600', 'bg-blue-600');
 
-            badge.innerText = "MENCARI SIARAN...";
-            badge.className = "inline-block px-4 py-1 bg-blue-600 rounded-full text-[10px] tracking-widest mb-10";
+            const call = peer.call(RADIO_ID, new MediaStream());
 
-            // Mencoba melakukan panggilan
-            // Note: Kita kirim dummy stream agar browser menganggap ini interaksi media yang valid
-            const call = peer.call(HOST_ID, new MediaStream());
-
-            const connectTimeout = setTimeout(() => {
-                if (badge.innerText !== "ONLINE / TERSAMBUNG") {
+            const timeout = setTimeout(() => {
+                if (badge.innerText !== "ONLINE") {
                     badge.innerText = "RADIO OFF";
-                    badge.className = "inline-block px-4 py-1 bg-red-600 rounded-full text-[10px] tracking-widest mb-10";
-                    msg.innerText = "SIARAN BELUM AKTIF. MENCOBA LAGI...";
-                    setTimeout(connect, 4000); 
+                    badge.classList.replace('bg-blue-600', 'bg-red-600');
+                    msg.innerText = "Mencoba lagi dalam 5 detik...";
+                    setTimeout(connect, 5000);
                 }
-            }, 4000);
+            }, 5000);
 
             call.on('stream', (remoteStream) => {
-                clearTimeout(connectTimeout);
-                badge.innerText = "ONLINE / TERSAMBUNG";
-                badge.className = "inline-block px-4 py-1 bg-green-600 rounded-full text-[10px] tracking-widest mb-10 uppercase";
-                msg.innerText = "Mendengarkan Live...";
+                clearTimeout(timeout);
+                badge.innerText = "ONLINE";
+                badge.classList.replace('bg-blue-600', 'bg-green-600');
+                badge.classList.replace('bg-red-600', 'bg-green-600');
+                msg.innerText = "Siaran Terhubung";
 
                 const audio = new Audio();
                 audio.srcObject = remoteStream;
-                audio.play().catch(e => {
-                    msg.innerText = "Klik layar untuk memutar suara";
+                audio.play().catch(() => {
+                    msg.innerText = "Sentuh layar untuk memutar suara";
                     window.onclick = () => audio.play();
                 });
-
-                // Jika koneksi putus
-                call.on('close', () => { 
-                    badge.innerText = "RADIO OFF"; 
-                    connect(); 
-                });
             });
-
-            call.on('error', () => {
-                badge.innerText = "RADIO OFF";
-                setTimeout(connect, 4000);
-            });
+            
+            call.on('error', () => { setTimeout(connect, 5000); });
         }
 
-        mainBtn.onclick = startRadar;
-
-        // Jika ID Peer utama (pendengar) putus dari server, sambungkan kembali
-        peer.on('disconnected', () => peer.reconnect());
+        document.getElementById('play-btn').onclick = startRadar;
     </script>
 </body>
 </html>
