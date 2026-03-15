@@ -3,74 +3,56 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Listener Ippnuda</title>
+    <title>Dengar Ippnuda Radio</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <style>
+        .glass { background: rgba(255, 255, 255, 0.1); backdrop-filter: blur(10px); }
+        .bg-gradient { background: radial-gradient(circle at top, #065f46, #000000); }
+    </style>
 </head>
-<body class="bg-black text-white flex items-center justify-center min-h-screen">
+<body class="bg-gradient min-h-screen text-white flex flex-col items-center p-6">
+    <header class="text-center mt-12 mb-10">
+        <h1 class="text-3xl font-light tracking-widest uppercase">Ippnuda <span class="text-green-500 font-medium">Radio</span></h1>
+    </header>
 
-    <div class="w-full max-w-sm p-10 bg-zinc-900 rounded-[3rem] text-center border border-white/10 shadow-2xl">
-        <div id="badge" class="inline-block px-4 py-1 bg-zinc-800 rounded-full text-[10px] tracking-widest mb-10 uppercase">Sistem Siap</div>
+    <main class="w-full max-w-sm glass rounded-[2.5rem] p-8 border border-white/10 text-center shadow-2xl">
+        <div id="status-text" class="text-sm opacity-70 mb-8 text-green-400">Siaran: 04021991</div>
         
-        <button id="play-btn" class="w-24 h-24 bg-green-600 rounded-full flex items-center justify-center mx-auto shadow-2xl active:scale-90 transition-all">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+        <button id="connect-btn" class="w-32 h-32 bg-green-600 hover:bg-green-500 rounded-full flex items-center justify-center mx-auto shadow-[0_0_40px_rgba(34,197,94,0.3)] transition-all active:scale-95">
+            <svg id="play-icon" xmlns="http://www.w3.org/2000/svg" class="h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-width="1.5" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
             </svg>
         </button>
-
-        <p id="msg" class="mt-10 text-[10px] opacity-40 uppercase tracking-widest">Klik untuk mulai mendengar</p>
-    </div>
+        
+        <p id="info" class="mt-8 text-xs opacity-50 font-light italic">Klik tombol hijau untuk mulai mendengarkan</p>
+    </main>
 
     <script>
-        const RADIO_ID = "04021991";
+        const HOST_ID = "04021991";
         const peer = new Peer();
-        const badge = document.getElementById('badge');
-        const msg = document.getElementById('msg');
-        let isStarted = false;
+        const connectBtn = document.getElementById('connect-btn');
+        const infoText = document.getElementById('info');
 
-        function startRadar() {
-            isStarted = true;
-            document.getElementById('play-btn').style.display = 'none';
-            connect();
-        }
-
-        function connect() {
-            if (!isStarted) return;
+        connectBtn.onclick = () => {
+            infoText.innerText = "Menghubungkan ke siaran...";
             
-            badge.innerText = "MENCARI...";
-            badge.classList.replace('bg-zinc-800', 'bg-blue-600');
-            badge.classList.replace('bg-red-600', 'bg-blue-600');
-
-            const call = peer.call(RADIO_ID, new MediaStream());
-
-            const timeout = setTimeout(() => {
-                if (badge.innerText !== "ONLINE") {
-                    badge.innerText = "RADIO OFF";
-                    badge.classList.replace('bg-blue-600', 'bg-red-600');
-                    msg.innerText = "Mencoba lagi dalam 5 detik...";
-                    setTimeout(connect, 5000);
-                }
-            }, 5000);
-
-            call.on('stream', (remoteStream) => {
-                clearTimeout(timeout);
-                badge.innerText = "ONLINE";
-                badge.classList.replace('bg-blue-600', 'bg-green-600');
-                badge.classList.replace('bg-red-600', 'bg-green-600');
-                msg.innerText = "Siaran Terhubung";
-
-                const audio = new Audio();
-                audio.srcObject = remoteStream;
-                audio.play().catch(() => {
-                    msg.innerText = "Sentuh layar untuk memutar suara";
-                    window.onclick = () => audio.play();
+            // Mengirim stream kosong untuk memicu handshake PeerJS
+            navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+                const call = peer.call(HOST_ID, stream);
+                
+                call.on('stream', (remoteStream) => {
+                    infoText.innerText = "Mendengarkan Live...";
+                    document.getElementById('status-text').innerText = "• ON AIR •";
+                    
+                    const audio = new Audio();
+                    audio.srcObject = remoteStream;
+                    audio.play();
                 });
-            });
-            
-            call.on('error', () => { setTimeout(connect, 5000); });
-        }
 
-        document.getElementById('play-btn').onclick = startRadar;
+                call.on('error', () => { alert("Penyiar sedang tidak aktif."); });
+            }).catch(() => alert("Izin audio diperlukan."));
+        };
     </script>
 </body>
 </html>
