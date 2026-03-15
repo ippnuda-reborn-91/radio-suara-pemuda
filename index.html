@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Mixer Ippnuda</title>
+    <title>Ippnuda Announcer</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
     <style>
@@ -13,9 +13,17 @@
 </head>
 <body class="bg-gradient min-h-screen text-white flex flex-col items-center justify-center p-6">
 
-    <main class="w-full max-w-md glass rounded-[2.5rem] p-8 border border-white/10 shadow-2xl">
+    <div id="login-overlay" class="fixed inset-0 z-50 flex items-center justify-center bg-black/95 p-6 hidden">
+        <div class="w-full max-w-sm glass border border-white/10 p-8 rounded-[2.5rem] text-center shadow-2xl">
+            <h2 class="text-green-400 font-bold tracking-[0.3em] uppercase text-sm mb-6">Security Access</h2>
+            <input type="password" id="pass-input" placeholder="Masukkan Password" class="w-full bg-black/40 border border-white/10 rounded-2xl py-4 px-6 mb-4 text-center text-white focus:outline-none focus:border-green-500 font-mono">
+            <button onclick="checkPass()" class="w-full py-4 bg-green-600 hover:bg-green-500 rounded-2xl font-bold tracking-widest transition-all">VERIFIKASI</button>
+        </div>
+    </div>
+
+    <main id="app-content" class="w-full max-w-md glass rounded-[2.5rem] p-8 border border-white/10 shadow-2xl">
         <div class="text-center mb-6">
-            <h1 class="text-xl font-bold tracking-widest text-green-400 uppercase">Ippnuda Mixer</h1>
+            <h1 class="text-xl font-bold tracking-widest text-green-400 uppercase">Ippnuda Announcer</h1>
             <p class="text-[10px] opacity-40 uppercase tracking-widest">Pendengar: <span id="count">0</span></p>
         </div>
 
@@ -39,7 +47,7 @@
                 [Status] Siap...
             </div>
 
-            <button onclick="location.reload()" class="w-full py-2 text-[10px] opacity-30 uppercase underline mt-2">Reset Aplikasi</button>
+            <button onclick="logout()" class="w-full py-2 text-[10px] opacity-30 uppercase underline mt-2">Logout & Reset</button>
         </div>
     </main>
 
@@ -48,6 +56,28 @@
         let peer, audioCtx, dest, micStream, musicNode, currentAudio;
         const debug = document.getElementById('debug');
 
+        // --- SECURITY LOGIC ---
+        if (sessionStorage.getItem('ippnuda_auth') !== 'true') {
+            document.getElementById('login-overlay').classList.remove('hidden');
+        }
+
+        function checkPass() {
+            const pass = document.getElementById('pass-input').value;
+            if (pass === "IPPNUDA") {
+                sessionStorage.setItem('ippnuda_auth', 'true');
+                document.getElementById('login-overlay').classList.add('hidden');
+                log("Login Berhasil.");
+            } else {
+                alert("Password Salah!");
+            }
+        }
+
+        function logout() {
+            sessionStorage.removeItem('ippnuda_auth');
+            location.reload();
+        }
+
+        // --- AUDIO ENGINE LOGIC ---
         function log(msg) {
             const time = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'});
             debug.innerHTML = `[${time}] ${msg}<br>` + debug.innerHTML;
@@ -56,7 +86,6 @@
         async function initAudioEngine() {
             if (!audioCtx) {
                 audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                // Ini adalah jalur utama ke pendengar. Jangan pernah di-reset!
                 dest = audioCtx.createMediaStreamDestination();
                 log("Mixer Utama Aktif");
             }
@@ -70,7 +99,6 @@
                 try {
                     micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
                     const micSource = audioCtx.createMediaStreamSource(micStream);
-                    // Hubungkan mic ke jalur utama pendengar (dest)
                     micSource.connect(dest);
                     document.getElementById('btn-mic').classList.replace('bg-gray-700', 'bg-green-600');
                     log("Mic ON (Terhubung ke Siaran)");
@@ -98,8 +126,6 @@
                 currentAudio.volume = document.getElementById('vol').value;
 
                 musicNode = audioCtx.createMediaElementSource(currentAudio);
-                
-                // PENTING: Hubungkan ke dest (pendengar) DAN speaker lokal (admin)
                 musicNode.connect(dest); 
                 musicNode.connect(audioCtx.destination);
                 
@@ -109,7 +135,6 @@
             } catch (err) { log("Error Play: " + err.message); }
         };
 
-        // --- STOP MUSIK ---
         document.getElementById('btn-stop').onclick = () => {
             if (currentAudio) {
                 currentAudio.pause();
@@ -134,7 +159,6 @@
 
             peer.on('call', (call) => {
                 log("Pendengar baru masuk!");
-                // Kirim stream dari dest (Mixer Utama) ke pendengar
                 call.answer(dest.stream);
                 updateCount(1);
                 call.on('close', () => updateCount(-1));
