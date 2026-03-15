@@ -9,85 +9,49 @@
     <style>
         .glass { background: rgba(255, 255, 255, 0.1); backdrop-filter: blur(10px); }
         .bg-gradient { background: radial-gradient(circle at top, #065f46, #000000); }
-        .wave-anim { animation: wave 1.5s ease-in-out infinite; }
-        @keyframes wave { 0%, 100% { transform: scaleY(0.5); } 50% { transform: scaleY(1.5); } }
     </style>
 </head>
-<body class="bg-gradient min-h-screen text-white font-sans flex flex-col items-center p-6">
-
+<body class="bg-gradient min-h-screen text-white flex flex-col items-center p-6">
     <header class="text-center mt-12 mb-10">
-        <div class="inline-block px-3 py-1 border border-green-500/50 rounded-full text-[10px] tracking-widest text-green-400 mb-4">MODE PENDENGAR</div>
-        <h1 class="text-3xl font-light tracking-widest">IPPNUDA <span class="text-green-500 font-medium">LIVE</span></h1>
+        <h1 class="text-3xl font-light tracking-widest uppercase">Ippnuda <span class="text-green-500 font-medium">Radio</span></h1>
     </header>
 
-    <div id="visualizer" class="flex items-end justify-center space-x-1 h-20 mb-12 opacity-30">
-        <div class="w-1 bg-green-500 h-8 wave-anim" style="animation-delay: 0.1s"></div>
-        <div class="w-1 bg-green-500 h-12 wave-anim" style="animation-delay: 0.2s"></div>
-        <div class="w-1 bg-green-500 h-16 wave-anim" style="animation-delay: 0.3s"></div>
-        <div class="w-1 bg-green-500 h-10 wave-anim" style="animation-delay: 0.4s"></div>
-        <div class="w-1 bg-green-500 h-14 wave-anim" style="animation-delay: 0.5s"></div>
-    </div>
-
-    <main class="w-full max-w-sm glass rounded-[2.5rem] p-8 border border-white/10 shadow-2xl">
-        <div id="join-section">
-            <p class="text-center text-sm opacity-70 mb-6">Masukkan ID Radio untuk mulai mendengarkan siaran langsung.</p>
-            <input type="text" id="host-id" placeholder="Contoh: 7f8a2c..." class="w-full bg-black/40 border border-white/10 rounded-2xl py-4 px-6 mb-4 text-center text-green-400 focus:outline-none focus:border-green-500 transition-all font-mono">
-            <button id="connect-btn" class="w-full py-4 bg-green-600 hover:bg-green-500 rounded-2xl font-bold transition-all shadow-lg shadow-green-900/40">
-                HUBUNGKAN SEKARANG
-            </button>
-        </div>
-
-        <div id="player-section" class="hidden text-center">
-            <div class="py-4">
-                <p class="text-green-400 animate-pulse text-sm tracking-widest font-bold mb-6">TERHUBUNG KE SIARAN</p>
-                <div class="flex justify-center mb-6">
-                    <div class="w-20 h-20 bg-green-600 rounded-full flex items-center justify-center shadow-[0_0_30px_rgba(34,197,94,0.4)]">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
-                        </svg>
-                    </div>
-                </div>
-                <p class="text-xs opacity-50 italic">Suara sedang diputar secara real-time...</p>
-            </div>
-        </div>
+    <main class="w-full max-w-sm glass rounded-[2.5rem] p-8 border border-white/10 text-center shadow-2xl">
+        <div id="status-text" class="text-sm opacity-70 mb-8 text-green-400">Siaran: 04021991</div>
+        
+        <button id="connect-btn" class="w-32 h-32 bg-green-600 hover:bg-green-500 rounded-full flex items-center justify-center mx-auto shadow-[0_0_40px_rgba(34,197,94,0.3)] transition-all active:scale-95">
+            <svg id="play-icon" xmlns="http://www.w3.org/2000/svg" class="h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-width="1.5" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+            </svg>
+        </button>
+        
+        <p id="info" class="mt-8 text-xs opacity-50 font-light italic">Klik tombol hijau untuk mulai mendengarkan</p>
     </main>
 
-    <footer class="mt-auto py-8 opacity-30 text-[10px] tracking-widest">
-        &copy; 2026 IPPNUDA RADIO SYSTEM
-    </footer>
-
     <script>
+        const HOST_ID = "04021991";
         const peer = new Peer();
         const connectBtn = document.getElementById('connect-btn');
-        const hostIdInput = document.getElementById('host-id');
-        const joinSection = document.getElementById('join-section');
-        const playerSection = document.getElementById('player-section');
-        const visualizer = document.getElementById('visualizer');
+        const infoText = document.getElementById('info');
 
         connectBtn.onclick = () => {
-            const hostId = hostIdInput.value.trim();
-            if (!hostId) return alert("Masukkan ID Radio!");
-
-            // Memanggil penyiar (host)
-            // Kita perlu mengirimkan stream kosong agar fungsi call berjalan
+            infoText.innerText = "Menghubungkan ke siaran...";
+            
+            // Mengirim stream kosong untuk memicu handshake PeerJS
             navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
-                const call = peer.call(hostId, stream);
+                const call = peer.call(HOST_ID, stream);
                 
                 call.on('stream', (remoteStream) => {
-                    // Sembunyikan input, tampilkan player
-                    joinSection.classList.add('hidden');
-                    playerSection.classList.remove('hidden');
-                    visualizer.classList.remove('opacity-30');
-                    visualizer.classList.add('opacity-100');
-
-                    // Putar audio dari penyiar
+                    infoText.innerText = "Mendengarkan Live...";
+                    document.getElementById('status-text').innerText = "• ON AIR •";
+                    
                     const audio = new Audio();
                     audio.srcObject = remoteStream;
                     audio.play();
                 });
-            }).catch(err => {
-                alert("Akses audio diperlukan untuk sinkronisasi.");
-            });
+
+                call.on('error', () => { alert("Penyiar sedang tidak aktif."); });
+            }).catch(() => alert("Izin audio diperlukan."));
         };
     </script>
 </body>
