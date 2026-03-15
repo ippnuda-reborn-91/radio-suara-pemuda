@@ -3,18 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin - Ippnuda Radio</title>
+    <title>Admin Mixer - Ippnuda Radio</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
         .glass { background: rgba(255, 255, 255, 0.1); backdrop-filter: blur(10px); }
         .bg-gradient { background: radial-gradient(circle at top, #064e3b, #000000); }
+        input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 15px; height: 15px; background: #22c55e; cursor: pointer; border-radius: 50%; }
     </style>
 </head>
 <body class="bg-gradient min-h-screen text-white flex flex-col items-center p-6">
 
     <div id="login-box" class="mt-20 w-full max-w-sm glass p-8 rounded-[2rem] text-center border border-white/10">
-        <h2 class="text-green-400 font-bold tracking-widest mb-6 uppercase text-sm">Login Admin Ippnuda</h2>
+        <h2 class="text-green-400 font-bold tracking-widest mb-6 uppercase text-sm">Admin Ippnuda login</h2>
         <input type="password" id="pass" placeholder="Password" class="w-full bg-black/40 border border-white/10 p-4 rounded-xl mb-4 text-center focus:outline-none focus:border-green-500">
         <button onclick="login()" class="w-full bg-green-600 py-3 rounded-xl font-bold hover:bg-green-500 transition-all">MASUK</button>
     </div>
@@ -29,19 +30,19 @@
             <button id="btn-mic" class="w-full py-4 bg-gray-700 rounded-2xl font-bold uppercase text-xs tracking-widest transition-all border border-white/5">Aktifkan Mic</button>
             
             <div class="bg-black/30 p-5 rounded-3xl border border-white/5">
-                <label class="text-[9px] text-gray-500 uppercase block mb-3 tracking-widest text-center">Music Control</label>
+                <label class="text-[9px] text-gray-500 uppercase block mb-3 tracking-widest text-center">Music Control (MP3)</label>
                 <input type="file" id="audio-file" accept="audio/*" class="text-[10px] mb-4 block w-full text-gray-400">
                 
                 <audio id="music-tag"></audio>
 
                 <div class="flex space-x-2 mb-4">
-                    <button id="btn-music-play" class="flex-1 py-3 bg-gray-700 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all">Play</button>
+                    <button id="btn-music-play" class="flex-1 py-3 bg-gray-700 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all">Play / Ganti</button>
                     <button id="btn-music-stop" class="flex-1 py-3 bg-gray-700 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all">Stop</button>
                 </div>
 
                 <div class="flex items-center space-x-3 px-1">
-                    <span class="text-[9px] text-gray-500 font-bold">VOL</span>
-                    <input type="range" id="music-volume" min="0" max="1" step="0.1" value="0.5" class="w-full accent-green-500">
+                    <span class="text-[9px] text-gray-500 font-bold uppercase">Vol</span>
+                    <input type="range" id="music-volume" min="0" max="1" step="0.1" value="0.5" class="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-green-500">
                 </div>
             </div>
 
@@ -54,7 +55,7 @@
     <script>
         const MY_FIXED_ID = "04021991";
         let peer, audioCtx, dest, micStream, musicNode;
-        let isMicOn = false, isMusicOn = false;
+        let isMicOn = false;
         let activeListeners = new Set();
 
         const musicTag = document.getElementById('music-tag');
@@ -82,7 +83,7 @@
             }
         }
 
-        // --- Logika Mic ---
+        // --- Fitur Mic ---
         document.getElementById('btn-mic').onclick = async () => {
             await initAudio();
             const btn = document.getElementById('btn-mic');
@@ -102,20 +103,26 @@
             }
         };
 
-        // --- Logika Musik ---
+        // --- Fitur Musik (Perbaikan Ganti File) ---
         document.getElementById('btn-music-play').onclick = async () => {
             await initAudio();
             if (audioInput.files[0]) {
-                if (!musicNode) {
-                    const fileURL = URL.createObjectURL(audioInput.files[0]);
-                    musicTag.src = fileURL;
-                    musicNode = audioCtx.createMediaElementSource(musicTag);
-                    musicNode.connect(dest); // Ke Pendengar
-                    musicNode.connect(audioCtx.destination); // Ke Admin
+                // Berhenti & Putus koneksi lagu lama jika ada
+                if (musicNode) {
+                    musicTag.pause();
+                    musicNode.disconnect();
+                    musicNode = null;
                 }
+
+                const fileURL = URL.createObjectURL(audioInput.files[0]);
+                musicTag.src = fileURL;
+                
+                musicNode = audioCtx.createMediaElementSource(musicTag);
+                musicNode.connect(dest); // Ke siaran
+                musicNode.connect(audioCtx.destination); // Ke admin
+                
                 musicTag.play();
                 document.getElementById('btn-music-play').classList.replace('bg-gray-700', 'bg-blue-600');
-                isMusicOn = true;
             } else { alert("Pilih file MP3!"); }
         };
 
@@ -124,13 +131,12 @@
                 musicTag.pause();
                 musicTag.currentTime = 0;
                 document.getElementById('btn-music-play').classList.replace('bg-blue-600', 'bg-gray-700');
-                isMusicOn = false;
             }
         };
 
         volSlider.oninput = (e) => { musicTag.volume = e.target.value; };
 
-        // --- Logika Radio ---
+        // --- Fitur Radio ---
         document.getElementById('start-broadcast').onclick = () => {
             if (peer) return;
             peer = new Peer(MY_FIXED_ID);
@@ -141,16 +147,22 @@
             peer.on('call', (call) => {
                 call.answer(dest.stream);
                 activeListeners.add(call.peer);
-                document.getElementById('count').innerText = activeListeners.size;
-                call.on('close', () => { 
-                    activeListeners.delete(call.peer); 
-                    document.getElementById('count').innerText = activeListeners.size; 
-                });
+                updateCountDisplay();
+                call.on('close', () => removeListener(call.peer));
+                call.on('error', () => removeListener(call.peer));
             });
             peer.on('error', (err) => {
-                if(err.type === 'unavailable-id') alert("ID 04021991 sedang digunakan. Refresh tab lain.");
+                if(err.type === 'unavailable-id') alert("ID sedang aktif. Silakan tunggu atau Reset.");
             });
         };
+
+        function removeListener(id) {
+            activeListeners.delete(id);
+            updateCountDisplay();
+        }
+        function updateCountDisplay() {
+            document.getElementById('count').innerText = activeListeners.size;
+        }
     </script>
 </body>
 </html>
